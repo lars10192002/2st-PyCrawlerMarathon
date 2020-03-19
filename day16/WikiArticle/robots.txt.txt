@@ -1,0 +1,1 @@
+雖然robots.txt是最為廣泛接受的方法，但也可以與robots META標籤一起使用。robots META標籤主要是針對一個獨立的頁面設定，與其他的META標籤（如使用的語言、頁面的描述、關鍵詞等）一樣，robots META標籤也是放在頁面的HEAD標籤中，專門用來告訴搜尋引擎robots如何抓取該頁的內容。註

@@ -1,0 +1,1 @@
+Gopher是1990年代早期被HTTP取代的內容傳遞協定。SPDY是Google開發的HTTP的替代方案，它被新版本的HTTP協定HTTP/2所取代。
