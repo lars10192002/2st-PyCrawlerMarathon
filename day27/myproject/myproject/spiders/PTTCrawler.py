@@ -1,35 +1,18 @@
-1. 安裝scrapy
-```
-conda install scrapy
-```
-
-2. 建立一個符合scrapy框架結構的叫myproject的專案
-```
-scrapy startproject myproject
-```
-
-3. 透過命令列列來來產⽣生出⼀一個符合框架的爬蟲類別scrapy genspider [爬蟲名稱] [爬蟲⽬目標網址] 
-- cd myproject 後下cmd
-```
-scrapy genspider PTTCrawler www.ptt.cc
-```
-會在/spider 下 新增一個PTTCrawler.py
-
-```py
-
 # -*- coding: utf-8 -*-
 import scrapy
 import re
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
+from pathlib import Path
 from pprint import pprint
-#scrapy.Spider => 爬蟲 ID，在整個 project 中必須要是唯⼀一值
+from ..items import PTTArticleItem
+
 # 範例目標網址: https://www.ptt.cc/bbs/Gossiping/M.1557928779.A.0C1.html
 class PttcrawlerSpider(scrapy.Spider):
     name = 'PTTCrawler'
     allowed_domains = ['www.ptt.cc']
     start_urls = ['https://www.ptt.cc/bbs/NSwitch/M.1585368504.A.25A.html']
-    cookies = {'over18': '1'} # 過濾成年人的cookies
+    cookies = {'over18': '1'}
 
     def start_requests(self):
         for url in self.start_urls:
@@ -84,11 +67,8 @@ class PttcrawlerSpider(scrapy.Spider):
         except Exception as e:
             ip = ''
         
-        # 移除文章主體中 '※ 發信站:', '◆ From:', 空行及多餘空白 (※ = u'\u203b', ◆ = u'\u25c6')
-        # 保留英數字, 中文及中文標點, 網址, 部分特殊符號
-        #
+
         # 透過 .stripped_strings 的方式可以快速移除多餘空白並取出文字, 可參考官方文件 
-        #  - https://www.crummy.com/software/BeautifulSoup/bs4/doc/#strings-and-stripped-strings
         filtered = []
         for v in main_content.stripped_strings:
             # 假如字串開頭不是特殊符號或是以 '--' 開頭的, 我們都保留其文字
@@ -105,9 +85,6 @@ class PttcrawlerSpider(scrapy.Spider):
         content = ' '.join(filtered)
         
         # 處理留言區
-        # p 計算推文數量
-        # b 計算噓文數量
-        # n 計算箭頭數量
         p, b, n = 0, 0, 0
         messages = []
         for push in pushes:
@@ -115,18 +92,12 @@ class PttcrawlerSpider(scrapy.Spider):
             if not push.find('span', 'push-tag'):
                 continue
             
-            # 過濾額外空白與換行符號
-            # push_tag 判斷是推文, 箭頭還是噓文
-            # push_userid 判斷留言的人是誰
-            # push_content 判斷留言內容
-            # push_ipdatetime 判斷留言日期時間
             push_tag = push.find('span', 'push-tag').string.strip(' \t\n\r')
             push_userid = push.find('span', 'push-userid').string.strip(' \t\n\r')
             push_content = push.find('span', 'push-content').strings
             push_content = ' '.join(push_content)[1:].strip(' \t\n\r')
             push_ipdatetime = push.find('span', 'push-ipdatetime').string.strip(' \t\n\r')
 
-            # 整理打包留言的資訊, 並統計推噓文數量
             messages.append({
                 'push_tag': push_tag,
                 'push_userid': push_userid,
@@ -139,61 +110,26 @@ class PttcrawlerSpider(scrapy.Spider):
             else:
                 n += 1
         
-        # 統計推噓文
-        # count 為推噓文相抵看這篇文章推文還是噓文比較多
-        # all 為總共留言數量 
         message_count = {'all': p+b+n, 'count': p-b, 'push': p, 'boo': b, 'neutral': n}
         
         # 整理文章資訊
-        data = {
-            'url': response.url,
-            'article_author': author,
-            'article_title': title,
-            'article_date': date,
-            'article_content': content,
-            'ip': ip,
-            'message_count': message_count,
-            'messages': messages
-        }
+        data = PTTArticleItem()
+        article_id = str(Path(urlparse(response.url).path).stem)
+        data['url'] = response.url
+        data['article_id'] = article_id
+        data['article_author'] = author
+        data['article_title'] = title
+        data['article_date'] = date
+        data['article_content'] = content
+        data['ip'] = ip
+        data['message_count'] = message_count
+        data['messages'] = messages
+        #print('=========================>',data['article_author'])
+        #print('=========================>',data['article_title'])
+        #print('=========================>',data['article_date'])
+        #print('=========================>',data['article_content'])
+        #print('=========================>',data['ip'])
+        #print('=========================>',data['message_count'])
+        #print('=========================>',data['messages'])
+
         yield data
-
-
-```
-4.執行 scrapy crawl PTTCrawler 開始抓取資料
-
-```
-scrapy crawl PTTCrawler
-```
-
-
-XPath + Item Pipeline
-5.透過 Item 設定爬完的文章資訊資料格式
-- 透過 Item Pipeline 設定爬文存成 JSON 的流程
-
-```py
-# -*- coding: utf-8 -*-
-
-# Define here the models for your scraped items
-#
-# See documentation in:
-# https://doc.scrapy.org/en/latest/topics/items.html
-
-import scrapy
-
-
-class PTTArticleItem(scrapy.Item):
-    # define the fields for your item here like:
-    url = scrapy.Field()
-    article_id = scrapy.Field()
-    article_author = scrapy.Field()
-    article_title = scrapy.Field()
-    article_date = scrapy.Field()
-    article_content = scrapy.Field()
-    ip = scrapy.Field()
-    message_count = scrapy.Field()
-    message = scrapy.Field()
-    
-
-```
-
-
